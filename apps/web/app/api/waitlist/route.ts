@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import { Resend } from "resend";
 import { z } from "zod";
 import crypto from "node:crypto";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -24,7 +29,7 @@ export async function POST(req: NextRequest) {
     const e = normaliseEmail(email);
 
     // block if unsubscribed
-    const unsub = await kv.get<boolean>(`waitlist:unsub:${e}`);
+    const unsub = await redis.get<boolean>(`waitlist:unsub:${e}`);
     if (unsub) {
       return NextResponse.json(
         { ok: false, error: "This email has unsubscribed." },
@@ -33,17 +38,17 @@ export async function POST(req: NextRequest) {
     }
 
     // add to set + meta
-    await kv.sadd("waitlist:emails", e);
+    await redis.sadd("waitlist:emails", e);
     const now = Date.now();
-    await kv.hset(`waitlist:meta:${e}`, {
+    await redis.hset(`waitlist:meta:${e}`, {
       tsJoined: now,
       source: source ?? "unknown",
     });
-    await kv.zadd("waitlist:z:joined", { score: now, member: e });
+    await redis.zadd("waitlist:z:joined", { score: now, member: e });
 
     // generate confirm token (7d expiry)
     const token = crypto.randomBytes(24).toString("base64url");
-    await kv.set(`waitlist:token:${token}`, e, { ex: 60 * 60 * 24 * 7 });
+    await redis.set(`waitlist:token:${token}`, e, { ex: 60 * 60 * 24 * 7 });
 
     const confirmUrl = `${baseUrl}/confirm?token=${token}`;
 

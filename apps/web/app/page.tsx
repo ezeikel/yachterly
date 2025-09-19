@@ -1,102 +1,107 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
+"use client";
+
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { track } from '@vercel/analytics';
 import styles from "./page.module.css";
 
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
-
-  return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
+type State = "idle" | "loading" | "ok" | "error";
 
 export default function Home() {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<State>("idle");
+
+  // Track page view on mount
+  useEffect(() => {
+    track('waitlist_page_view', {
+      source: 'hero'
+    });
+  }, []);
+
+  function handleEmailFocus() {
+    track('waitlist_email_focus', {
+      source: 'hero'
+    });
+  }
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setState("loading");
+    
+    // Track form submission attempt
+    track('waitlist_form_submit', {
+      source: 'hero',
+      email_domain: email.split('@')[1] || 'unknown'
+    });
+    
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "hero" }),
+      });
+      
+      if (res.ok) {
+        setState("ok");
+        // Track successful signup
+        track('waitlist_signup_success', {
+          source: 'hero',
+          email_domain: email.split('@')[1] || 'unknown'
+        });
+      } else {
+        setState("error");
+        // Track API error
+        track('waitlist_signup_error', {
+          source: 'hero',
+          error_type: 'api_error',
+          status: res.status
+        });
+      }
+    } catch (error) {
+      setState("error");
+      // Track network/client error
+      track('waitlist_signup_error', {
+        source: 'hero',
+        error_type: 'network_error'
+      });
+    }
+  }
+
   return (
     <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/web/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+      <div className={styles.content}>
+        <h1 className={styles.title}>Yachterly.</h1>
+        <Image src="/images/card.png" alt="Yacht card" width={927} height={568} className={styles.card} />
+        <p className={styles.description}>
+          Yachterly is the modern fintech platform for yacht crew: virtual cards,
+          real-time expenses, payroll & defect management. Secure, global, digital.
+        </p>
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.com/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-        <Button appName="web" className={styles.secondary}>
-          Open alert
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        <p className={styles.description}>
+          Join the waitlist to get early access to the platform.
+        </p>
+
+        <form onSubmit={submit} className={styles.form} noValidate>
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="Enter your email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            onFocus={handleEmailFocus}
+            className={styles.input}
+            aria-label="Email address"
           />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.com?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.com →
-        </a>
-      </footer>
+          <button type="submit" className={styles.cta} disabled={state === "loading"}>
+            {state === "loading" ? "Sending..." : "Get Early Access"}
+          </button>
+        </form>
+        
+        {state === "ok" && <p className={styles.note}>Check your inbox to confirm your email.</p>}
+        {state === "error" && <p className={styles.error}>Something went wrong. Please try again.</p>}
+      </div>
     </div>
   );
 }
+

@@ -12,9 +12,13 @@
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/kv": "^3.0.0",
     "next": "^15.5.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "resend": "^6.1.0",
+    "zod": "^4.1.9"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
